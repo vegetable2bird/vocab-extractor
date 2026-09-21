@@ -1,0 +1,20 @@
+[Unit]
+Description=vocab-extractor static site (independent, port 8080)
+Documentation=https://github.com/vegetable2bird/vocab-extractor
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/vocab-extractor
+Environment=WEB_ROOT=/opt/vocab-extractor/web
+Environment=PORT=8080
+ExecStart=/usr/local/bin/node /opt/vocab-extractor/server.js
+Restart=always
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
