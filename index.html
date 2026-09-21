@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>生词提取器 · Vocab Extractor</title>
+<style>
+  :root {
+    --bg: #f5f6f8;
+    --panel: #ffffff;
+    --border: #e3e6ea;
+    --text: #1f2329;
+    --muted: #8a9099;
+    --accent: #2f6bff;
+    --accent-soft: #eaf0ff;
+    --sel: #fff3cd;
+    --sel-border: #f0c451;
+    --stop: #c8ccd2;
+    --danger: #e5484d;
+    --radius: 10px;
+    --shadow: 0 1px 3px rgba(0,0,0,.06), 0 6px 20px rgba(0,0,0,.05);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg); color: var(--text); font-size: 14px;
+  }
+  header {
+    padding: 14px 20px; border-bottom: 1px solid var(--border); background: var(--panel);
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  }
+  header h1 { font-size: 17px; margin: 0; font-weight: 650; }
+  header .tip { color: var(--muted); font-size: 12px; }
+  .layout { display: grid; grid-template-columns: 1fr 360px; gap: 16px; padding: 16px; height: calc(100vh - 56px); }
+  .col { min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+  .card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+    box-shadow: var(--shadow); overflow: hidden; display: flex; flex-direction: column; min-height: 0;
+  }
+  .card-head { padding: 10px 14px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .card-head h2 { font-size: 13px; margin: 0; font-weight: 600; }
+  .card-body { padding: 14px; overflow: auto; flex: 1; min-height: 0; }
+  textarea {
+    width: 100%; height: 100%; min-height: 220px; resize: none; border: none; outline: none;
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; font-size: 13px; line-height: 1.7;
+    color: var(--text);
+  }
+  .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  button {
+    font: inherit; cursor: pointer; border: 1px solid var(--border); background: var(--panel);
+    color: var(--text); padding: 6px 12px; border-radius: 8px; transition: .15s;
+  }
+  button:hover { border-color: var(--accent); color: var(--accent); }
+  button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  button.primary:hover { background: #2257e0; color: #fff; }
+  button.ghost { border-color: transparent; color: var(--muted); }
+  button.ghost:hover { color: var(--danger); border-color: var(--danger); }
+  label.toggle { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; cursor: pointer; user-select: none; }
+  input[type=file] { display: none; }
+  .drop-hint { color: var(--muted); font-size: 12px; }
+  #articleView { line-height: 1.9; font-size: 15px; }
+  #articleView .line { margin: 0 0 2px; white-space: normal; word-break: break-word; }
+  #articleView .para-gap { height: 10px; }
+  #articleView .w {
+    cursor: pointer; border-radius: 4px; padding: 0 1px; transition: background .12s;
+    border-bottom: 1px dashed transparent;
+  }
+  #articleView .w:hover { background: var(--accent-soft); }
+  #articleView .w.stop { color: var(--stop); }
+  #articleView .w.stop:hover { background: #f0f1f3; }
+  #articleView .w.sel { background: var(--sel); border-bottom-color: var(--sel-border); color: #8a6d1f; font-weight: 600; }
+  #articleView .w.sel:hover { background: #ffe9a8; }
+  .stats { color: var(--muted); font-size: 12px; }
+  .vocab-item {
+    display: flex; align-items: center; gap: 8px; padding: 7px 10px; border: 1px solid var(--border);
+    border-radius: 8px; margin-bottom: 6px;
+  }
+  .vocab-item .word { font-weight: 600; flex: 1; word-break: break-all; }
+  .vocab-item .freq { color: var(--muted); font-size: 12px; }
+  .vocab-item .x { cursor: pointer; color: var(--muted); border: none; background: none; padding: 2px 6px; }
+  .vocab-item .x:hover { color: var(--danger); }
+  .empty { color: var(--muted); text-align: center; padding: 30px 10px; font-size: 13px; }
+  .export-box { width: 100%; height: 150px; border: 1px solid var(--border); border-radius: 8px; padding: 8px;
+    font-family: Consolas, monospace; font-size: 12px; resize: vertical; color: var(--text); }
+  .hint { color: var(--muted); font-size: 12px; line-height: 1.6; }
+  .pill { background: var(--accent-soft); color: var(--accent); border-radius: 999px; padding: 2px 9px; font-size: 12px; font-weight: 600; }
+  .spin { width: 26px; height: 26px; border: 3px solid var(--accent-soft); border-top-color: var(--accent);
+    border-radius: 50%; animation: sp .8s linear infinite; }
+  @keyframes sp { to { transform: rotate(360deg); } }
+  #ocrBar { width: 200px; height: 5px; background: #e3e6ea; border-radius: 3px; overflow: hidden; }
+  #ocrBarIn { height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+  @media (max-width: 880px) { .layout { grid-template-columns: 1fr; height: auto; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>📚 生词提取器</h1>
+  <span class="tip">粘贴 / 导入中英夹杂文章 → 点击英文单词加入生词本 → 复制去交给 AI 解析</span>
+</header>
+
+<div class="layout">
+  <!-- 左：导入 + 文章 -->
+  <div class="col">
+    <div class="card" style="flex:0 0 auto;">
+      <div class="card-head">
+        <h2>① 导入文章</h2>
+        <div class="toolbar">
+          <button onclick="document.getElementById('fileInput').click()">📁 上传文件 (txt/md/pdf)</button>
+          <button onclick="document.getElementById('imgInput').click()">🖼️ 截图 / 图片 OCR</button>
+          <button id="parseBtn" class="primary" onclick="parseArticle()">⚡ 解析 / 重新渲染</button>
+          <label class="toggle"><input type="checkbox" id="stopToggle" onchange="parseArticle()"> 自动屏蔽常见词</label>
+          <label class="toggle"><input type="checkbox" id="shortToggle" onchange="parseArticle()"> 隐藏 ≤2 字母单词</label>
+          <label class="toggle"><input type="checkbox" id="cleanToggle" checked onchange="parseArticle()"> 净化 PDF 噪声</label>
+        </div>
+        <input type="file" id="fileInput" accept=".txt,.md,.markdown,.csv,.json,.text,.pdf" onchange="handleFile(event)" />
+        <input type="file" id="imgInput" accept="image/*" multiple onchange="handleImage(event)" />
+      </div>
+      <div class="card-body" style="flex:0 0 220px;">
+        <div id="dropZone" style="height:100%;position:relative;">
+          <textarea id="rawInput" placeholder="在此粘贴英文外刊文章（可含中文译文）……&#10;· 直接 Ctrl+V 粘贴截图，自动 OCR 识别英文&#10;· 或把 .txt / .md / .pdf / 图片 文件拖拽到这个框里。"></textarea>
+          <div id="ocrMask" style="display:none;position:absolute;inset:0;background:rgba(255,255,255,.92);align-items:center;justify-content:center;flex-direction:column;gap:10px;font-size:13px;color:#2f6bff;">
+            <div class="spin"></div>
+            <div id="ocrText">正在识别图片文字…</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="flex:1;">
+      <div class="card-head">
+        <h2>② 点击单词提取生词</h2>
+        <span class="stats" id="articleStats">尚未解析</span>
+        <div class="toolbar" style="margin-left:auto;">
+          <label class="toggle" style="gap:4px;white-space:nowrap;">最少出现
+            <input type="number" id="minOcc" value="1" min="1" max="99" style="width:52px;padding:3px 5px;border:1px solid var(--border);border-radius:6px;text-align:center;"> 次
+          </label>
+          <button class="primary" onclick="smartPreselect()">🤖 智能预选生词</button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div id="articleView"><p class="empty">解析后，这里会显示可点击的英文单词。点一下即加入右侧生词本，再点一下取消。</p></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 右：生词本 + 导出 -->
+  <div class="col">
+    <div class="card" style="flex:1;">
+      <div class="card-head">
+        <h2>③ 生词本</h2>
+        <span class="pill" id="selCount">0</span>
+        <div class="toolbar" style="margin-left:auto;">
+          <button onclick="toggleSort()" id="sortBtn" title="切换排序方式">🔤 按字母</button>
+          <button class="ghost" onclick="clearVocab()">清空</button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div id="vocabList"><p class="empty">还没有选中的生词。<br>在左侧点几个单词试试 👆</p></div>
+      </div>
+    </div>
+
+    <div class="card" style="flex:0 0 auto;">
+      <div class="card-head">
+        <h2>④ 导出 / 交给 AI</h2>
+        <div class="toolbar" style="margin-left:auto;">
+          <button onclick="copyWords()">复制单词</button>
+          <button onclick="copyAiPrompt()">复制 AI 提示词</button>
+          <button class="primary" onclick="downloadTxt()">下载 .txt</button>
+        </div>
+      </div>
+      <div class="card-body">
+        <p class="hint" style="margin:0 0 8px;">下面是自动生成的 AI 解析提示词，直接复制发给 AI 即可要音标/词性/释义/例句：</p>
+        <textarea id="exportBox" class="export-box" readonly></textarea>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  "use strict";
+  const STOPWORDS = new Set(("a an and or but if then else the of to in on at by for with from into onto upon as is are " +
+    "was were be been being am do does did doing have has had having will would shall should can could may might must " +
+    "i you he she it we they me him her us them my your his its our their this that these those there here what which who " +
+    "whom whose when where why how not no nor so than too very just also about over under again more most other some such " +
+    "out up down off above below between through during before after above all any each few both own same s t d re ve ll " +
+    "m o re y ain don didn doesn doesn't won wouldn woul ca n't 's 're 've 'm 'll 'd").split(" "));
+
+  // 常用英文词表（约 1500 个高频词干），用于「智能预选」时排除已掌握词。
+  // 配合 looksCommon 的词形还原，可覆盖常见复数/过去式/现在分词/副词。
+  const COMMON_WORDS = new Set((
+    "the a an and or but if then else of to in on at by for with from into onto upon as is are was were be been being am " +
+    "do does did doing have has had having will would shall should can could may might must i you he she it we they me him " +
+    "her us them my your his its our their this that these those there here what which who whom whose when where why how " +
+    "not no nor so than too very just also about over under again more most other some such out up down off above below " +
+    "between through during before after all any each few both own same because although though while since until unless " +
+    "whether either neither only even still yet once now thus hence per via amid among within without towards against along " +
+    "across behind beyond beside despite except plus etc ok yes yeah nope hey oh wow uh um well like really actually " +
+    "basically generally usually often always never rarely sometimes maybe perhaps probably certainly surely possibly " +
+    "apparently obviously simply merely quite rather fairly somewhat slightly almost nearly hardly barely completely fully " +
+    "totally entirely absolutely exactly precisely especially particularly mainly mostly largely highly deeply strongly " +
+    "widely closely directly indirectly quickly slowly easily carefully clearly freely happily sadly angrily loudly quietly " +
+    "recently currently previously formerly originally finally initially gradually suddenly immediately soon later earlier " +
+    "already early late daily weekly monthly yearly annual time year people way day man thing woman life child world school " +
+    "state family student group country problem hand part place case week company system program question government number " +
+    "night point home water room mother area money story fact month right study book eye job word business issue side kind " +
+    "head house service friend father power hour game line end member law car city community name president team minute idea " +
+    "kid body information back parent face others level office door health person art war history party result change morning " +
+    "reason research girl guy moment air teacher force education foot boy age policy process music market soul light film " +
+    "computer news test doctor hair love freedom paper purpose form view king english series god approach chance camera peace " +
+    "figure event network center field police weight matter role model type plan course fire risk street sense class effort " +
+    "energy ground picture difference pain truth example value position edge claim demand growth smile advice cancer duty " +
+    "heart window wall floor table chair bed phone internet email message letter card gift food drink meal meat fish rice " +
+    "bread egg milk tea coffee sugar salt oil wine beer fruit vegetable tree plant flower grass animal dog cat bird horse cow " +
+    "pig sheep insect bug mouse bear lion tiger wolf fox snake rabbit chicken duck goat monkey elephant zoo park garden forest " +
+    "mountain river lake sea ocean island hill rock stone sand sun moon star sky cloud rain snow wind storm weather season " +
+    "spring summer autumn winter temperature heat cold smoke ash dust dirt mud road path bridge tunnel station airport port " +
+    "harbor train bus truck bike boat ship plane flight travel trip journey tour visit guest host hotel restaurant kitchen " +
+    "bathroom toilet shower mirror soap towel clothes shirt pants dress coat hat shoe sock glove scarf bag pocket key lock " +
+    "chain rope wire nail screw hammer knife fork spoon plate bowl cup glass bottle box basket bucket can tin jar tube pipe " +
+    "hose wheel tire engine motor machine tool device instrument battery cable plug switch button screen keyboard printer " +
+    "monitor speaker microphone lens photo image video movie song tune rhythm dance play show concert opera theater stage " +
+    "actor singer dancer audience ticket seat row curtain sound voice noise silence sentence paragraph page chapter novel " +
+    "poem essay document file folder record list chart map diagram graph drawing painting sign symbol mark digit code " +
+    "password title label tag coupon receipt bill invoice tax fee price cost worth cash coin bank account credit debt loan " +
+    "interest profit loss income salary wage pay payment check balance budget fund investment stock share trade good sale " +
+    "buy sell rent lease hire employ task duty career profession skill training college university lesson exam grade degree " +
+    "certificate license permission rule regulation politics election vote prime minister parliament congress court judge " +
+    "crime prison punishment fine trial evidence witness lawyer arrest investigation suspect victim injury damage accident " +
+    "disaster emergency rescue aid help support care treatment medicine nurse patient disease illness symptom cure vaccine " +
+    "drug pill operation surgery blood birth youth adult baby relative enemy neighbor stranger crowd society culture nation " +
+    "town village region district zone earth planet space universe nature environment human individual citizen resident " +
+    "visitor tourist passenger driver pilot captain soldier officer army navy weapon gun bomb tank missile battle fight " +
+    "conflict treaty agreement deal contract promise vow oath swear signature note report conversation discussion debate " +
+    "argument talk speech lecture presentation meeting conference festival celebration ceremony ritual tradition custom " +
+    "habit practice routine schedule project mission goal aim target objective cause effect result outcome consequence " +
+    "solution answer topic subject theme thought concept theory method means structure organization institution factory " +
+    "production product goods supply demand economy industry growth plant build make create destroy fix repair clean wash " +
+    "cook bake boil fry eat drink bite chew swallow taste smell hear listen see look watch read write draw paint sing act " +
+    "speak say tell ask answer teach learn think know understand believe doubt hope wish want need choose decide refuse " +
+    "accept agree disagree promise allow forbid force protect defend win lose beat fail succeed try attempt manage control " +
+    "lead follow guide direct command obey rule govern judge solve find lose search seek discover invent design grow develop " +
+    "improve change replace remove add reduce increase expand open close shut lock unlock cover uncover hide reveal show " +
+    "display explain describe define mean represent indicate suggest imply prove confirm deny admit claim argue conclude " +
+    "summarize repeat copy translate convert transfer send receive deliver return borrow lend give take bring fetch obtain " +
+    "acquire earn save spend waste use consume produce provide offer present propose recommend advise warn threaten frighten " +
+    "scare surprise shock amaze impress satisfy please annoy bother upset anger calm relax comfort cheer encourage inspire " +
+    "motivate discourage depress tire rest sleep wake dream remember forget recall recognize realize notice observe mention " +
+    "comment complain praise blame criticize apologize thank congratulate mourn grieve cry laugh smile frown sigh shout " +
+    "whisper scream hum whistle clap knock hit punch kick push pull drag throw catch drop fall bounce roll spin turn twist " +
+    "bend stretch fold squeeze press touch feel rub scratch tickle kiss hug shake wave point nod wink blink stare glance " +
+    "gaze peek spy examine inspect check measure count calculate compute estimate guess predict expect assume suppose imagine " +
+    "pretend desire request require lack miss keep retain possess own belong share divide separate join connect link tie " +
+    "bind attach fasten loosen release free escape flee appear emerge arrive depart enter exit remain wait pause delay hurry " +
+    "rush speed accelerate slow halt block prevent avoid dodge evade bypass skip omit neglect ignore overlook identify name " +
+    "classify categorize sort organize arrange order rank rate score correct edit revise update upgrade configure run " +
+    "execute operate apply employ utilize exploit abuse misuse conserve preserve guard shield shelter mask disguise expose " +
+    "disclose leak hint signify denote stand symbolize embody express convey communicate transmit forward pass hand fill " +
+    "empty load unload pack unpack wrap unfold store archive delete erase clear wipe sweep vacuum mop polish shine buff print " +
+    "stamp sketch outline trace duplicate reproduce forge fake mimic imitate simulate depict portray narrate relate recount " +
+    "retell review analyze explore undergo suffer endure bear stand tolerate consent approve adopt elect appoint assign " +
+    "designate term specify state assert declare announce proclaim pronounce voice utter express relate register log catalog " +
+    "index contain include comprise involve consist compose equal match fit suit correspond refer pertain concern affect " +
+    "influence impact alter modify transform adapt amend rectify restore renew substitute exchange swap fill reset restart " +
+    "reboot begin finish complete terminate cancel abort quit retire resign refund repay return correspond respond reply " +
+    "return retract adapt adopt advance progress broaden widen deepen heighten rise climb mount ascend descend boost enhance " +
+    "better refine perfect finalize close cease leave vanish fade dissolve melt evaporate freeze solidify harden soften " +
+    "crumble shatter crack split tear rip cut slice chop mince grind crush smash pound drill bore pierce stab wound spoil " +
+    "ruin demolish wreck crash collide bump tap pat massage stroke pet cuddle snuggle nestle lean lie sit stand kneel squat " +
+    "stoop bow tremble shiver shudder quake vibrate buzz ring chime toll echo resound roar rumble thunder bang pop snap " +
+    "click clack clatter rattle jingle tinkle hiss sizzle fizz bubble simmer stew brew ferment rot decay decompose mold " +
+    "rust corrode erode wear dim dull tarnish spot smudge smear blot streak stripe signal emblem badge logo brand trademark " +
+    "autograph credential qualification ability talent gift knack aptitude capacity capability strength vigor vitality stamina " +
+    "endurance resilience toughness hardness firmness solidity stability steadiness balance poise grace elegance beauty charm " +
+    "appeal allure glamour splendor magnificence grandeur glory dignity pride vanity ego self spirit mind intellect wisdom " +
+    "insight awareness consciousness emotion passion sentiment affection fondness tenderness warmth kindness sympathy empathy " +
+    "compassion mercy pity charity generosity liberalism tolerance patience forbearance serenity tranquility harmony security " +
+    "safety shelter refuge haven sanctuary dwelling residence abode lodging accommodation apartment flat condo mansion villa " +
+    "cottage cabin hut tent camp barracks inn motel hostel lodge resort retreat spa club pub bar cafe diner canteen buffet " +
+    "cafeteria pantry cellar basement attic loft garage shed barn stable kennel coop pen cage aquarium terrarium aviary hive " +
+    "nest web hole burrow den lair cave cavern grotto mine pit quarry well shaft chimney funnel vent duct cord strand fiber " +
+    "yarn wool silk cotton linen cloth fabric textile material substance element compound mixture solution liquid fluid gas " +
+    "vapor steam fume mist fog haze dew frost sleet drizzle shower tempest hurricane typhoon cyclone tornado whirlwind " +
+    "breeze gust atmosphere oxygen nitrogen carbon hydrogen helium atom molecule particle proton neutron electron nucleus " +
+    "cell tissue organism creature being entity object item unit piece component factor aspect feature characteristic trait " +
+    "property attribute quality essence reality existence living dead mortal immortal eternal infinite finite limited bound " +
+    "independent dependent attached connected related associated affiliated joined united combined merged mixed blended " +
+    "fused integrated whole partial incomplete blank void null zero none nobody nowhere absent missing gone hidden concealed " +
+    "secret private confidential public exposed visible apparent obvious clear evident plain manifest patent distinct " +
+    "definite certain sure positive confident convinced secure safe guarded covered wrapped enclosed surrounded bordered " +
+    "bounded restricted confined held kept stored saved preserved maintained sustained supported upheld endorsed backed " +
+    "welcomed received taken grabbed seized caught captured trapped snared netted hooked fished hunted chased pursued " +
+    "followed tracked traced trailed shadowed tailed dogged haunted obsessed consumed driven motivated urged compelled " +
+    "obliged demanded requested asked invited called summoned beckoned motioned shown exhibited performed staged filmed " +
+    "aired issued released launched initiated introduced proposed recommended counseled mentored tutored schooled informed " +
+    "notified warned alerted cautioned reminded recollected retrieved revived resurrected awakened surfaced materialized " +
+    "detected located spotted eyed regarded contemplated pondered reflected mused wondered queried inquired scrutinized " +
+    "probed surveyed scanned screened filtered sifted eligible fit suited apt appropriate proper decent respectable virtuous " +
+    "moral ethical just fair equitable impartial unbiased neutral objective reasonable rational logical sensible sound valid " +
+    "reliable dependable trustworthy faithful loyal devoted committed earnest sincere honest truthful frank candid blunt " +
+    "straightforward simple smooth fluent facile prompt instant abrupt hasty rushed hurried premature unexpected unforeseen " +
+    "surprising astonishing amazing astounding stunning breathtaking awesome formidable fearsome terrible horrible dreadful " +
+    "awful wicked incorrect false untrue fake bogus counterfeit forged imitation artificial synthetic virtual digital " +
+    "electronic online web cyber software hardware application platform utility function option setting parameter variable " +
+    "constant data knowledge intelligence learning algorithm language framework library module package folder directory " +
+    "query keyword ranking review rating feedback subscribe notification profile login user admin guest level rank credit " +
+    "reward badge achievement progress streak challenge quest server client node connection bandwidth latency ping stream " +
+    "buffer cache memory storage disk drive cloud database column menu click tap drag drop scroll swipe zoom pinch hover " +
+    "focus highlight mark check uncheck toggle slider checkbox radio input submit reset cancel confirm done next previous " +
+    "forward minimize maximize restore refresh reload sync install uninstall export import backup lock unlock mute unmute " +
+    "volume fullscreen" +
+    // 补充：高频词覆盖补丁（手列词表易漏的基础词，重复无害）
+    " new one two three first second third get got gets getting go going gone went say says saying said tell told ask " +
+    "asked use used using used used need needed want wanted like liked liking love loved know knew known think thought " +
+    "see saw seen look looked take took taken make made find found give gave given come came become became put put set " +
+    "set keep kept let let begin began begun help helped show showed work worked turn turned call called move moved " +
+    "live lived lives living men women children people old young good bad great big small little large high low long " +
+    "short much many few several every each both another other any some such same well also still even only already " +
+    "yet ever never always often sometimes usually maybe perhaps quite rather very really just almost enough least " +
+    "within upon onto amongst per via every each another whether either neither not no yes ok yeah okay sure certain " +
+    "including included include according follow followed get gets got gotten go goes going went word words line lines " +
+    "part parts point points system systems set sets example examples case cases level levels type types form forms " +
+    "fact facts number numbers group groups side sides end ends order orders change changes result results " +
+    "media social political economic global national local public private human natural physical mental central " +
+    "different important possible available major recent total current standard traditional modern simple complex " +
+    "common special general specific clear major minor open closed full empty black white red blue green adj adv prep conj pron abbr aux"
+  ).split(" "));
+
+  // 词形还原：识别常见复数/-ing/-ed/-ly，落到词干后查常用表，减少误报
+  function looksCommon(w) {
+    if (COMMON_WORDS.has(w)) return true;
+    let b = w;
+    if (b.endsWith("ies")) b = b.slice(0, -3) + "y";
+    else if (b.endsWith("es")) b = b.slice(0, -2);
+    else if (b.endsWith("s")) b = b.slice(0, -1);
+    if (b.endsWith("ing")) b = b.slice(0, -3);
+    else if (b.endsWith("ed")) b = b.slice(0, -2);
+    if (b.endsWith("ly")) b = b.slice(0, -2);
+    return COMMON_WORDS.has(b);
+  }
+
+  const STORE_KEY = "vocab-extractor-sel-v1";
+
+  let selected = new Map();   // word(lowercase) -> { count, casing }
+  let freqMap = new Map();    // word(lowercase) -> { count, casing } over whole article
+  let sortMode = "alpha";     // alpha | freq
+
+  const $ = (id) => document.getElementById(id);
+
+  function tokenize(text) {
+    // 匹配连续拉丁字母（允许词内连字符与缩写撇号）
+    return text.match(/[A-Za-z][A-Za-z'’-]*/g) || [];
+  }
+
+  function handleFile(e) {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (file) importFile(file);
+  }
+
+  function importFile(file) {
+    const name = (file.name || "").toLowerCase();
+    if (name.endsWith(".pdf")) { extractPdf(file); return; }
+    if (file.type && file.type.startsWith("image/")) { ocrImages([file]); return; }
+    const reader = new FileReader();
+    reader.onload = (ev) => { $("rawInput").value = ev.target.result; parseArticle(); };
+    reader.readAsText(file);
+  }
+
+  // ---------- 图片 OCR（Tesseract.js，懒加载 CDN，首次需联网）----------
+  let tesseractPromise = null;
+  function ensureTesseract() {
+    if (window.Tesseract) return Promise.resolve(window.Tesseract);
+    if (tesseractPromise) return tesseractPromise;
+    tesseractPromise = new Promise((resolve, reject) => {
+      const s = document.createElement("script");
+      s.src = "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.0/dist/tesseract.min.js";
+      s.onload = () => window.Tesseract ? resolve(window.Tesseract) : reject(new Error("OCR 组件无效"));
+      s.onerror = () => reject(new Error("OCR 组件加载失败（需联网一次）"));
+      document.head.appendChild(s);
+    });
+    return tesseractPromise;
+  }
+
+  function handleImage(e) {
+    const files = Array.from(e.target.files || []);
+    e.target.value = "";
+    if (files.length) ocrImages(files);
+  }
+
+  function showOcrMask(show, msg, pct) {
+    const m = $("ocrMask");
+    m.style.display = show ? "flex" : "none";
+    if (msg) $("ocrText").textContent = msg;
+    let bar = $("ocrBar");
+    if (show && !bar) {
+      bar = document.createElement("div"); bar.id = "ocrBar";
+      bar.innerHTML = '<div id="ocrBarIn"></div>';
+      m.appendChild(bar);
+    }
+    if (bar && typeof pct === "number") $("ocrBarIn").style.width = Math.round(pct * 100) + "%";
+    if (!show && bar) bar.remove();
+  }
+
+  async function ocrImages(files) {
+    if (!$("rawInput").value.trim()) $("rawInput").value = "";
+    let T;
+    showOcrMask(true, "正在加载 OCR 引擎…", 0);
+    try { T = await ensureTesseract(); }
+    catch (err) { showOcrMask(false); toast(err.message); return; }
+
+    const parts = [];
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i];
+      showOcrMask(true, `识别第 ${i + 1}/${files.length} 张图片…`, i / files.length);
+      try {
+        const url = URL.createObjectURL(f);
+        // eng+chi_sim：英文用于生词，中文保留译文对照
+        // 需要词框坐标来还原段落结构（blocks: true）
+        const r = await T.recognize(url, "eng+chi_sim", {
+          logger: (m) => {
+            if (m.status === "recognizing text") {
+              const p = (i + m.progress) / files.length;
+              showOcrMask(true, `识别第 ${i + 1}/${files.length} 张图片…`, p);
+            }
+          }
+        });
+        URL.revokeObjectURL(url);
+        const data = r.data || {};
+        // tesseract.js v5 的 words 通常挂在 data.blocks[].paragraphs[].lines[].words
+        let words = [];
+        if (Array.isArray(data.words) && data.words.length) words = data.words;
+        else if (Array.isArray(data.blocks)) {
+          for (const b of data.blocks) for (const p of (b.paragraphs || []))
+            for (const l of (p.lines || [])) for (const w of (l.words || [])) words.push(w);
+        }
+        parts.push({ text: (data.text || "").trim(), words });
+      } catch (err) {
+        parts.push({ text: "[识别失败: " + (err && err.message ? err.message : err) + "]", words: [] });
+      }
+    }
+    showOcrMask(false);
+
+    // 优先用词框坐标还原段落；每张图分别处理后再拼接
+    const merged = parts.map(p => reflowOcrText(p.text, p.words)).join("\n\n");
+    $("rawInput").value = merged;
+    parseArticle();
+    toast(files.length + " 张图片识别完成（已按原文行距还原段落）");
+  }
+
+  // OCR 段落重建：用 Tesseract 返回的词框坐标聚行，再按行距判定段落边界
+  // （与 PDF 侧 rebuild.py 同一套思路：行距中位数作基准，超阈值即断段）
+  // 拿到词框时用 reflowByBoxes（精确）；退化时用 reflowByText（启发式兜底）
+  const CJK_CH = /[\u4e00-\u9fff，。；：、！？）》”’]/;
+
+  function ocrJoin(a, b) {
+    if (!a) return b;
+    return (CJK_CH.test(a.slice(-1)) || CJK_CH.test(b[0])) ? a + b : a + " " + b;
+  }
+
+  function reflowByBoxes(words) {
+    if (!words || !words.length) return null;
+    const ws = words
+      .filter(w => w && w.text && w.text.trim() && (w.confidence == null || w.confidence > 30))
+      .map(w => ({
+        text: w.text.trim(),
+        x0: w.bbox.x0, y0: w.bbox.y0, y1: w.bbox.y1,
+        cy: (w.bbox.y0 + w.bbox.y1) / 2
+      }));
+    if (!ws.length) return null;
+
+    const hs = ws.map(w => w.y1 - w.y0).sort((a, b) => a - b);
+    const lineH = hs[Math.floor(hs.length / 2)] || 12;
+    const tol = Math.max(lineH * 0.5, 4);
+
+    ws.sort((a, b) => a.cy - b.cy || a.x0 - b.x0);
+    const lines = [];
+    let cur = [], curY = null;
+    for (const w of ws) {
+      if (curY === null || Math.abs(w.cy - curY) <= tol) {
+        cur.push(w); if (curY === null) curY = w.cy;
+      } else { lines.push({ y: curY, items: cur }); cur = [w]; curY = w.cy; }
+    }
+    if (cur.length) lines.push({ y: curY, items: cur });
+
+    const gaps = [];
+    for (let i = 1; i < lines.length; i++) gaps.push(lines[i].y - lines[i - 1].y);
+    const sorted = gaps.slice().sort((a, b) => a - b);
+    const base = sorted.length ? sorted[Math.floor(sorted.length / 2)] : lineH * 1.5;
+    const thresh = base * 1.30;
+
+    const out = [];
+    let buf = "";
+    lines.forEach((ln, i) => {
+      ln.items.sort((a, b) => a.x0 - b.x0);
+      let s = "";
+      for (const w of ln.items) s = ocrJoin(s, w.text);
+      const prev = lines[i - 1];
+      const boundary = i === 0 || (ln.y - prev.y) > thresh;
+      if (boundary) {
+        // 段间：把上一段落盘，空一行
+        if (buf) { out.push(buf); out.push(""); }
+        buf = s;
+      } else {
+        // 段内换行：接续为同一段
+        buf = ocrJoin(buf, s);
+      }
+    });
+    if (buf) out.push(buf);
+    return out.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  }
+
+  // 兜底：无词框时按「语言切换 / 行尾句末标点」粗略分句
+  function reflowByText(text) {
+    const lines = text.replace(/\r\n?/g, "\n").split("\n").map(s => s.trim());
+    const out = [];
+    let buf = "";
+    const isCJK = c => !!c && /[\u4e00-\u9fff]/.test(c);
+    const HARD = /[。！？!?…]["'”"』】》)\]）]*$/;
+    for (const line of lines) {
+      if (!line) { if (buf) { out.push(buf); buf = ""; } out.push(""); continue; }
+      if (!buf) { buf = line; continue; }
+      const langSwitch = isCJK(buf.slice(-1)) !== isCJK(line[0]);
+      if (langSwitch || HARD.test(buf)) { out.push(buf); buf = line; }
+      else buf = ocrJoin(buf, line);
+    }
+    if (buf) out.push(buf);
+    return out.join("\n");
+  }
+
+  function reflowOcrText(text, words) {
+    return reflowByBoxes(words) || reflowByText(text);
+  }
+
+  // 全局粘贴：Ctrl+V 直接贴截图
+  document.addEventListener("paste", (e) => {
+    const items = (e.clipboardData && e.clipboardData.items) || [];
+    const imgs = [];
+    for (const it of items) {
+      if (it.kind === "file" && it.type.startsWith("image/")) {
+        const f = it.getAsFile();
+        if (f) imgs.push(f);
+      }
+    }
+    if (imgs.length) { e.preventDefault(); ocrImages(imgs); }
+  });
+
+  // 懒加载 PDF.js（仅导入 PDF 时需要联网）
+  let pdfJsPromise = null;
+  function ensurePdfJs() {
+    if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+    if (pdfJsPromise) return pdfJsPromise;
+    pdfJsPromise = new Promise((resolve, reject) => {
+      const s = document.createElement("script");
+      s.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+      s.onload = () => {
+        try { window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+          "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"; } catch (e) {}
+        resolve(window.pdfjsLib);
+      };
+      s.onerror = () => reject(new Error("PDF 组件加载失败（需联网）"));
+      document.head.appendChild(s);
+    });
+    return pdfJsPromise;
+  }
+
+  async function extractPdf(file) {
+    toast("正在抽取 PDF 文字…");
+    let lib;
+    try { lib = await ensurePdfJs(); }
+    catch (e) { toast("PDF 组件加载失败，请联网后重试，或先转成 txt"); return; }
+    try {
+      const buf = await file.arrayBuffer();
+      const pdf = await lib.getDocument({ data: buf }).promise;
+      let text = "";
+      for (let p = 1; p <= pdf.numPages; p++) {
+        const page = await pdf.getPage(p);
+        const tc = await page.getTextContent();
+        const line = tc.items.map(it => it.str).join(" ");
+        text += line + "\n\n";
+      }
+      $("rawInput").value = text;
+      parseArticle();
+      toast("PDF 已导入：" + pdf.numPages + " 页");
+    } catch (e) {
+      toast("PDF 解析失败：" + (e && e.message ? e.message : e));
+    }
+  }
+
+  // 拖拽上传
+  const dz = $("rawInput");
+  ["dragover","dragenter"].forEach(t => dz.addEventListener(t, e => { e.preventDefault(); dz.style.background = "#eaf0ff"; }));
+  ["dragleave","drop"].forEach(t => dz.addEventListener(t, e => { e.preventDefault(); dz.style.background = ""; }));
+  dz.addEventListener("drop", e => {
+    const files = Array.from((e.dataTransfer && e.dataTransfer.files) || []);
+    if (!files.length) return;
+    const imgs = files.filter(f => f.type && f.type.startsWith("image/"));
+    if (imgs.length === files.length) { ocrImages(imgs); return; }
+    importFile(files[0]);
+  });
+
+  function parseArticle() {
+    const text = $("rawInput").value;
+    if (!text.trim()) { $("articleStats").textContent = "空文章"; return; }
+
+    const hideShort = $("shortToggle").checked;
+    const blockStop = $("stopToggle").checked;
+    const doClean = $("cleanToggle").checked;
+
+    // 统计频次
+    freqMap = new Map();
+    tokenize(text).forEach(tok => {
+      const low = tok.toLowerCase();
+      if (hideShort && low.replace(/[^a-z]/g, "").length <= 2) return;
+      const rec = freqMap.get(low) || { count: 0, casing: tok };
+      rec.count++; freqMap.set(low, rec);
+    });
+
+    // 渲染：按行切分并保留段落结构，行内把英文单词包成可点击 span
+    const view = $("articleView");
+    view.innerHTML = "";
+    const frag = document.createDocumentFragment();
+
+    // 统一换行符，按行处理。空行保留为段落间距，短行（如标题/目录项）原样成段。
+    const lines = text.replace(/\r\n?/g, "\n").split("\n");
+    const wordRe = /([A-Za-z][A-Za-z'’-]*)|([^A-Za-z]+)/g;
+
+    // PDF 噪声清理：目录引导点、连点/下划线、纯页码行、装饰短横线
+    const noiseRe = /^[\s.．·…\-—_=*~]+$/;          // 整行都是引导点/横线/页码
+    const dotLeadRe = /[.．·…]{3,}\s*\d*\s*$/;        // 行尾 "...... 12" 引导点
+
+    lines.forEach(rawLine => {
+      let line = rawLine.replace(/\s+$/, "");
+      if (doClean) {
+        line = line.replace(dotLeadRe, "").replace(/\s+$/, "");
+        if (noiseRe.test(line)) return;               // 纯符号行直接丢弃
+      }
+      if (!line.trim()) {
+        // 空行：插入一个间距块，避免段落黏连
+        const gap = document.createElement("div");
+        gap.className = "para-gap";
+        frag.appendChild(gap);
+        return;
+      }
+      const p = document.createElement("p");
+      p.className = "line";
+      wordRe.lastIndex = 0;
+      let m;
+      while ((m = wordRe.exec(line)) !== null) {
+        if (m[1]) {
+          const low = m[1].toLowerCase();
+          if (hideShort && low.replace(/[^a-z]/g, "").length <= 2) {
+            p.appendChild(document.createTextNode(m[1]));
+            continue;
+          }
+          const span = document.createElement("span");
+          span.className = "w";
+          span.dataset.word = low;
+          span.textContent = m[1];
+          if (blockStop && STOPWORDS.has(low)) span.classList.add("stop");
+          if (selected.has(low)) span.classList.add("sel");
+          p.appendChild(span);
+        } else {
+          p.appendChild(document.createTextNode(m[2]));
+        }
+      }
+      frag.appendChild(p);
+    });
+    view.appendChild(frag);
+
+    const total = [...freqMap.values()].reduce((s, r) => s + r.count, 0);
+    $("articleStats").textContent = `英文词 ${total} 次 · 去重 ${freqMap.size} 个` + (blockStop ? " · 已屏蔽常见词" : "");
+    renderVocab();
+  }
+
+  $("articleView").addEventListener("click", (e) => {
+    const el = e.target.closest(".w");
+    if (!el) return;
+    const w = el.dataset.word;
+    if (el.classList.contains("stop")) {
+      // 被屏蔽的常见词：点击仅提示，不加入（避免噪音）
+      flash(el, "#f0f1f3");
+      return;
+    }
+    if (selected.has(w)) { selected.delete(w); el.classList.remove("sel"); }
+    else {
+      const rec = freqMap.get(w) || { count: 1, casing: w };
+      selected.set(w, rec); el.classList.add("sel");
+    }
+    renderVocab();
+  });
+
+  function flash(el, color) {
+    const old = el.style.background;
+    el.style.background = color;
+    setTimeout(() => { el.style.background = ""; }, 180);
+  }
+
+  function renderVocab() {
+    const list = $("vocabList");
+    $("selCount").textContent = selected.size;
+    if (selected.size === 0) {
+      list.innerHTML = '<p class="empty">还没有选中的生词。<br>在左侧点几个单词试试 👆</p>';
+    } else {
+      const words = sortMode === "freq"
+        ? [...selected.entries()].sort((a, b) => b[1].count - a[1].count || a[0].localeCompare(b[0])).map(e => e[0])
+        : [...selected.keys()].sort();
+      list.innerHTML = "";
+      words.forEach(w => {
+        const rec = selected.get(w);
+        const item = document.createElement("div");
+        item.className = "vocab-item";
+        item.innerHTML = `<span class="word">${escapeHtml(w)}</span>` +
+          `<span class="freq">×${rec.count}</span>` +
+          `<button class="x" title="移除">✕</button>`;
+        item.querySelector(".x").onclick = () => {
+          selected.delete(w);
+          const span = document.querySelector(`#articleView .w[data-word="${cssEsc(w)}"]`);
+          if (span) span.classList.remove("sel");
+          renderVocab();
+        };
+        list.appendChild(item);
+      });
+    }
+    updateExport();
+  }
+
+  function toggleSort() {
+    sortMode = sortMode === "alpha" ? "freq" : "alpha";
+    $("sortBtn").textContent = sortMode === "alpha" ? "🔤 按字母" : "🔢 按词频";
+    renderVocab();
+  }
+
+  // 智能预选：排除常用词 + 极短词，按词频降序把所有候选生词一次加进生词本
+  function smartPreselect() {
+    if (freqMap.size === 0) { toast("请先解析文章（点「⚡ 解析」）"); return; }
+    const minN = Math.max(1, parseInt($("minOcc").value, 10) || 1);
+    const cands = [];
+    for (const [w, rec] of freqMap) {
+      if (rec.count < minN) continue;
+      if (w.replace(/[^a-z]/g, "").length < 3) continue;
+      if (looksCommon(w)) continue;
+      cands.push([w, rec]);
+    }
+    cands.sort((a, b) => b[1].count - a[1].count || a[0].localeCompare(b[0]));
+    let added = 0;
+    cands.forEach(([w, rec]) => {
+      if (!selected.has(w)) { selected.set(w, rec); added++; }
+      const span = document.querySelector('#articleView .w[data-word="' + cssEsc(w) + '"]');
+      if (span) span.classList.add("sel");
+    });
+    sortMode = "freq";
+    $("sortBtn").textContent = "🔢 按词频";
+    renderVocab();
+    toast("智能预选完成：新增 " + added + " 个候选生词（已按词频排序，删掉你认识的即可导出）");
+  }
+
+  function updateExport() {
+    const words = [...selected.keys()].sort();
+    const box = $("exportBox");
+    if (words.length === 0) { box.value = ""; return; }
+    const list = words.map(w => `- ${w}`).join("\n");
+    box.value =
+      "请帮我把下面这些英文生词逐个解析，按词条给出：【音标】、【词性】、【中文释义】、【英文例句 1 个 + 中文翻译】。\n" +
+      "如果某个词有多个常见含义，请列出最核心的 2 个。\n\n" +
+      "生词列表：\n" + list;
+  }
+
+  function copyWords() {
+    const words = [...selected.keys()].sort().join(", ");
+    copyText(words || "（生词本为空）");
+  }
+  function copyAiPrompt() { copyText($("exportBox").value || "（生词本为空）"); }
+
+  function copyText(t) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(t).then(() => toast("已复制到剪贴板"), () => fallbackCopy(t));
+    } else fallbackCopy(t);
+  }
+  function fallbackCopy(t) {
+    const ta = document.createElement("textarea"); ta.value = t; document.body.appendChild(ta);
+    ta.select(); try { document.execCommand("copy"); toast("已复制"); } catch (e) { toast("复制失败，请手动选择"); }
+    document.body.removeChild(ta);
+  }
+  let toastTimer;
+  function toast(msg) {
+    let t = $("toast");
+    if (!t) { t = document.createElement("div"); t.id = "toast";
+      t.style.cssText = "position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1f2329;color:#fff;padding:8px 16px;border-radius:8px;font-size:13px;z-index:99;opacity:0;transition:.2s;";
+      document.body.appendChild(t); }
+    t.textContent = msg; t.style.opacity = "1";
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => t.style.opacity = "0", 1600);
+  }
+
+  function downloadTxt() {
+    if (selected.size === 0) { toast("生词本为空"); return; }
+    const words = [...selected.keys()].sort();
+    const content = words.map(w => w).join("\n");
+    const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "vocab-" + new Date().toISOString().slice(0,10) + ".txt";
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  function clearVocab() {
+    if (selected.size === 0) return;
+    selected.clear();
+    document.querySelectorAll("#articleView .w.sel").forEach(s => s.classList.remove("sel"));
+    renderVocab();
+  }
+
+  function escapeHtml(s) { return s.replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c])); }
+  function cssEsc(s) { return s.replace(/["\\]/g, "\\$&"); }
+
+  // 恢复上次选中的生词（仅单词本身，避免跨文章误标）
+  window.addEventListener("beforeunload", () => {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify([...selected.keys()])); } catch (e) {}
+  });
+
+  $("rawInput").addEventListener("input", () => { /* 实时不解析，避免卡顿；点解析按钮即可 */ });
+</script>
+</body>
+</html>
