@@ -864,6 +864,14 @@
   });
 
   $("rawInput").addEventListener("input", () => { /* 实时不解析，避免卡顿；点解析按钮即可 */ });
+
+  // 注册 Service Worker —— 装到桌面/主屏的前提条件，并让断网后也能打开。
+  // 只有 http/https 才支持；直接双击 index.html（file://）时自动跳过，不影响使用。
+  if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("sw.js").catch(() => { /* 注册失败不影响主功能 */ });
+    });
+  }
 </script>
 </body>
 </html>
