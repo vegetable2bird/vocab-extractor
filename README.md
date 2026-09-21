@@ -37,6 +37,45 @@
 
 > 首次使用 PDF 或图片导入时需联网一次（加载 PDF.js / Tesseract.js 语言包），之后可离线使用。
 
+## 部署到服务器（独立静态站点）
+
+线上地址：**http://154.8.220.104:8080/**
+
+采用 **独立端口 + 独立进程 + 独立目录**，与服务器上其他项目（如万象 `:80`）完全隔离，互不影响。
+
+| 项 | 值 |
+| --- | --- |
+| 访问地址 | `http://154.8.220.104:8080/` |
+| 站点目录 | `/opt/vocab-extractor/web/` |
+| 服务脚本 | `/opt/vocab-extractor/server.js`（零依赖，仅 Node 内置模块） |
+| systemd 单元 | `vocab-extractor.service`（开机自启 + 崩溃自动重启） |
+| 工作副本 | `/tmp/vx`（仓库克隆，供拉取更新） |
+
+### 一键更新（日常用这个）
+
+```bash
+sh /opt/vocab-extractor/update.sh
+```
+
+拉取最新代码（**带 5 次重试**，应对 github.com 间歇性不可达）后自动重新部署。即使拉取失败，线上运行的仍是上一个版本，不受影响。
+
+### 首次部署
+
+```bash
+git clone --depth 1 https://github.com/vegetable2bird/vocab-extractor.git /tmp/vx
+sh /tmp/vx/deploy/deploy.sh
+```
+
+### 运维命令
+
+```bash
+systemctl status vocab-extractor     # 查看状态
+systemctl restart vocab-extractor    # 重启
+journalctl -u vocab-extractor -n 50  # 查看日志
+```
+
+> 防火墙需放行 TCP 8080（已在腾讯云轻量应用服务器防火墙中配置）。
+
 ## 段落结构还原
 
 外刊 PDF 常把一自然段拆成多个视觉行，直接抽取会糊成一坨。本项目用**行距**判定段落边界：

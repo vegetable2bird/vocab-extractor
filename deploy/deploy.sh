@@ -17,7 +17,9 @@ UNIT=/etc/systemd/system/vocab-extractor.service
 mkdir -p "$DST/web"
 cp "$SRC/index.html"                     "$DST/web/index.html"
 cp "$SRC/deploy/server.js"               "$DST/server.js"
+cp "$SRC/deploy/update.sh"               "$DST/update.sh"
 cp "$SRC/deploy/vocab-extractor.service" "$UNIT"
+chmod +x "$DST/update.sh"
 
 systemctl daemon-reload
 systemctl enable vocab-extractor >/dev/null 2>&1 || true
