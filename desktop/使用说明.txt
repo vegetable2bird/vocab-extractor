@@ -33,6 +33,7 @@
 server.js       本地服务程序（别删）
 index.html      工具本体
 manifest.json   应用安装信息
+sw.js           离线缓存 / 应用安装支持（别删）
 icon-*.png      应用图标
 icon.svg        图标（矢量）
 使用说明.txt    本文件
