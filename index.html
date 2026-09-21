@@ -2,8 +2,21 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>生词提取器 · Vocab Extractor</title>
+
+<!-- 可作为独立 App 运行：添加到主屏幕 / 安装到桌面后全屏打开，无浏览器界面 -->
+<meta name="application-name" content="生词提取器" />
+<meta name="description" content="从中英夹杂的外刊文章中提取生词，生成列表交给 AI 解析" />
+<meta name="theme-color" content="#2f6bff" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="生词提取器" />
+<meta name="format-detection" content="telephone=no" />
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" type="image/svg+xml" href="icon.svg" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
 <style>
   :root {
     --bg: #f5f6f8;
@@ -25,6 +38,7 @@
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
     background: var(--bg); color: var(--text); font-size: 14px;
+    -webkit-text-size-adjust: 100%;
   }
   header {
     padding: 14px 20px; border-bottom: 1px solid var(--border); background: var(--panel);
@@ -90,7 +104,37 @@
   @keyframes sp { to { transform: rotate(360deg); } }
   #ocrBar { width: 200px; height: 5px; background: #e3e6ea; border-radius: 3px; overflow: hidden; }
   #ocrBarIn { height: 100%; width: 0; background: var(--accent); transition: width .2s; }
-  @media (max-width: 880px) { .layout { grid-template-columns: 1fr; height: auto; } }
+
+  /* ===== 移动端 / 小屏适配 ===== */
+  @media (max-width: 880px) {
+    .layout { grid-template-columns: 1fr; height: auto; padding: 12px; gap: 12px; }
+    .col { gap: 10px; }
+    /* 单列时卡片不再平分视口高度，各限高避免长文把页面撑到几万像素 */
+    .col > .card { flex: 0 0 auto; max-height: 72vh; }
+  }
+  @media (max-width: 560px) {
+    header { padding: 10px 12px; gap: 6px; }
+    header h1 { font-size: 16px; }
+    header .tip { display: none; }                 /* 手机上副标题太占地方 */
+    .card-head { padding: 9px 12px; gap: 8px; }
+    .card-body { padding: 12px; }
+    .toolbar { width: 100%; }
+    button { flex: 1 1 auto; min-height: 40px; padding: 8px 10px; }   /* 触摸命中区不低于 40px */
+    textarea { min-height: 150px; }
+    #articleView { font-size: 16px; line-height: 1.85; }             /* 正文放大，手机上更好读 */
+    .export-box { height: 118px; }
+    .vocab-item { padding: 9px 10px; }
+    .vocab-item .x { padding: 6px 10px; }                            /* 删除按钮加大命中区 */
+  }
+  /* 触屏设备：去掉点击高亮、加大单词点选区 */
+  @media (hover: none) {
+    button, #articleView .w, .vocab-item .x { -webkit-tap-highlight-color: transparent; }
+    #articleView .w { padding: 1px 2px; }
+  }
+  /* 刘海屏安全区 */
+  @supports (padding: env(safe-area-inset-bottom)) {
+    .layout { padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
+  }
 </style>
 </head>
 <body>

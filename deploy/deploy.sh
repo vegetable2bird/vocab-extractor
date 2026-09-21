@@ -15,7 +15,10 @@ UNIT=/etc/systemd/system/vocab-extractor.service
 [ -d "$SRC" ] || { echo "ERROR: 仓库未克隆到 $SRC"; exit 1; }
 
 mkdir -p "$DST/web"
-cp "$SRC/index.html"                     "$DST/web/index.html"
+# 站点文件 —— manifest 与图标缺一个，装到桌面/主屏时就没有图标
+for f in index.html manifest.json icon.svg icon-192.png icon-512.png apple-touch-icon.png; do
+  if [ -f "$SRC/$f" ]; then cp "$SRC/$f" "$DST/web/$f"; fi
+done
 cp "$SRC/deploy/server.js"               "$DST/server.js"
 cp "$SRC/deploy/update.sh"               "$DST/update.sh"
 cp "$SRC/deploy/vocab-extractor.service" "$UNIT"
